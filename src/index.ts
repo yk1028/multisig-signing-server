@@ -1,5 +1,5 @@
 import express from "express";
-import { Account, Key, LCDClient, MnemonicKey, SignatureV2, SignDoc, Tx, MsgSend, Fee, TxBody, SimplePublicKey, LegacyAminoMultisigPublicKey, MultiSignature } from '@terra-money/terra.js';
+import { LCDClient, MnemonicKey, SignatureV2, SignDoc, MsgSend, SimplePublicKey, LegacyAminoMultisigPublicKey, MultiSignature } from '@terra-money/terra.js';
 import * as keyInfo from '../.key-info.json';
 
 const terra = new LCDClient({
@@ -8,19 +8,20 @@ const terra = new LCDClient({
     gasPrices: { uluna: 0.01133 },
 });
 
-const sign = async (senderAddress: SimplePublicKey, msg: MsgSend, memo: string): Promise<SignatureV2> => {
-
-    const mnemonicKey = new MnemonicKey({
-        mnemonic: keyInfo.mnemonic
-    })
+const sign = async (receiverAddress: string, amount: string, memo: string): Promise<SignatureV2> => {
 
     const multisigPubkey = new LegacyAminoMultisigPublicKey(2, [
-        mnemonicKey.publicKey as SimplePublicKey, 
-        senderAddress as SimplePublicKey // other project pubkey
+        new SimplePublicKey(keyInfo.stationServerPublickey),
+        new SimplePublicKey(keyInfo.signingServerPublickey),
     ]);
 
     const address = multisigPubkey.address();
-    const multisig = new MultiSignature(multisigPubkey);
+
+    const msg = new MsgSend(
+        address,
+        receiverAddress,
+        amount
+      );
 
     const accInfo = await terra.auth.accountInfo(address);
     const tx = await terra.tx.create(
@@ -36,6 +37,10 @@ const sign = async (senderAddress: SimplePublicKey, msg: MsgSend, memo: string):
             memo: memo
         }
     );
+
+    const mnemonicKey = new MnemonicKey({
+        mnemonic: keyInfo.mnemonic
+    })
 
     return await mnemonicKey.createSignatureAmino(
         new SignDoc(
@@ -56,21 +61,9 @@ app.use(express.json());
 app.post( "/sign", async ( req, res ) => {
 
     const json = JSON.parse(req.body.jsonTx);
+    console.log(json);
 
-    const senderAddress = json.senderAddress;
-    const receiverAddress = json.receiverAddress;
-    const amount = json.amount;
-    const memo = json.memo;
-
-    const sendMsg = new MsgSend(
-        senderAddress,
-        receiverAddress,
-        amount
-    );
-
-    console.log(sendMsg);
-
-    const signature = await sign(new SimplePublicKey(senderAddress), sendMsg, memo);
+    const signature = await sign(json.receiverAddress, json.amount, json.memo);
 
     console.log(signature);
 
