@@ -45,6 +45,7 @@ const sign = async (receiverAddress: string, amount: string, memo: string): Prom
             memo: memo
         }
     );
+    
     // GCP HSM
 	const kms = new KeyManagementServiceClient();
 	const versionName = kms.cryptoKeyVersionPath(
@@ -54,11 +55,9 @@ const sign = async (receiverAddress: string, amount: string, memo: string): Prom
 		keyInfo.gcpInfo.keyId,
 		keyInfo.gcpInfo.versionId
 	);
-	const gcpHsmUtils = new GcpHsmSigner(kms, versionName);
-	const pubkey = await gcpHsmUtils.getPublicKey();
-	const gcpHsmKey: Key = new GcpHsmKey(gcpHsmUtils, pubkey);
-    
-    console.log(gcpHsmKey.publicKey as SimplePublicKey);
+	const gcpHsmSigner = new GcpHsmSigner(kms, versionName);
+	const pubkey = await gcpHsmSigner.getPublicKey();
+	const gcpHsmKey: Key = new GcpHsmKey(gcpHsmSigner, pubkey);
 
     return await gcpHsmKey.createSignatureAmino(
         new SignDoc(
@@ -78,12 +77,14 @@ app.use(express.json());
 
 app.post( "/sign", async ( req, res ) => {
 
-    const json = JSON.parse(req.body.jsonTx);
+    const json = JSON.parse(req.body.json);
 
+    console.log("=========Request=========");
     console.log(json);
 
     const signature = await sign(json.receiverAddress, json.amount, json.memo);
 
+    console.log("=========Response=========");
     console.log(signature);
 
     res.send(JSON.stringify(signature));
@@ -91,5 +92,5 @@ app.post( "/sign", async ( req, res ) => {
 
 // start the Express server
 app.listen( port, () => {
-    console.log( `server started at http://localhost:${ port }` );
+    console.log( `server started` );
 } );
