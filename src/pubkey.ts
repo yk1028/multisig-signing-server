@@ -1,4 +1,4 @@
-import { SimplePublicKey, Key} from '@terra-money/terra.js';
+import { SimplePublicKey, Key, LegacyAminoMultisigPublicKey} from '@terra-money/terra.js';
 import { KeyManagementServiceClient } from "@google-cloud/kms";
 import { GcpHsmKey } from './hsm/GcpHsmKey';
 import { GcpHsmSigner } from './hsm/GcpHsmSigner';

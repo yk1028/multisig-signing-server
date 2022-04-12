@@ -1,4 +1,4 @@
-import { LCDClient, SignatureV2, SignDoc, MsgSend, SimplePublicKey, LegacyAminoMultisigPublicKey, Key} from '@terra-money/terra.js';
+import { LCDClient, SignatureV2, SignDoc, MsgSend, SimplePublicKey, LegacyAminoMultisigPublicKey, Key, Tx, Coins} from '@terra-money/terra.js';
 import { KeyManagementServiceClient } from "@google-cloud/kms";
 import { GcpHsmKey } from './hsm/GcpHsmKey';
 import { GcpHsmSigner } from './hsm/GcpHsmSigner';
@@ -12,30 +12,40 @@ const terra = new LCDClient({
     gasPrices: { uluna: 0.01133 },
 });
 
-const getMultiSigAddresss = () => {
-    const multisigPubkey = new LegacyAminoMultisigPublicKey(2, [
-        new SimplePublicKey(keyInfo.stationServerPublickey),
-        new SimplePublicKey(keyInfo.signingServerPublickey),
-    ]);
+const multisigPubkey = new LegacyAminoMultisigPublicKey(2, [
+    new SimplePublicKey(keyInfo.stationServerPublickey),
+    new SimplePublicKey(keyInfo.signingServerPublickey),
+]);
 
-    return multisigPubkey.address();
+const getGcpHsmKey = async (): Promise<GcpHsmKey> => {
+    const kms = new KeyManagementServiceClient();
+    const versionName = kms.cryptoKeyVersionPath(
+        keyInfo.gcpInfo.projectId,
+        keyInfo.gcpInfo.locationId,
+        keyInfo.gcpInfo.keyRingId,
+        keyInfo.gcpInfo.keyId,
+        keyInfo.gcpInfo.versionId
+    );
+    const gcpHsmSigner = new GcpHsmSigner(kms, versionName);
+    const pubkey = await gcpHsmSigner.getPublicKey();
+    return new GcpHsmKey(gcpHsmSigner, pubkey);
 }
 
-const sign = async (receiverAddress: string, amount: string, memo: string): Promise<SignatureV2> => {
+const createTx = async (receiverAddress: string, amount: Coins.Input, memo: string): Promise<Tx> => {
 
-    const multiSigAddress = getMultiSigAddresss();
+    const address = multisigPubkey.address();
+    const accInfo = await terra.auth.accountInfo(address);
 
     const msg = new MsgSend(
-        multiSigAddress,
+        address,
         receiverAddress,
         amount
-      );
+    );
 
-    const accInfo = await terra.auth.accountInfo(multiSigAddress);
-    const tx = await terra.tx.create(
+    return await terra.tx.create(
         [
             {
-                address: multiSigAddress,
+                address,
                 sequenceNumber: accInfo.getSequenceNumber(),
                 publicKey: accInfo.getPublicKey(),
             },
@@ -45,19 +55,13 @@ const sign = async (receiverAddress: string, amount: string, memo: string): Prom
             memo: memo
         }
     );
-    
-    // GCP HSM
-	const kms = new KeyManagementServiceClient();
-	const versionName = kms.cryptoKeyVersionPath(
-		keyInfo.gcpInfo.projectId,
-		keyInfo.gcpInfo.locationId,
-		keyInfo.gcpInfo.keyRingId,
-		keyInfo.gcpInfo.keyId,
-		keyInfo.gcpInfo.versionId
-	);
-	const gcpHsmSigner = new GcpHsmSigner(kms, versionName);
-	const pubkey = await gcpHsmSigner.getPublicKey();
-	const gcpHsmKey: Key = new GcpHsmKey(gcpHsmSigner, pubkey);
+}
+
+const sign = async (tx: Tx): Promise<SignatureV2> => {
+
+    const multiSigAddress = multisigPubkey.address();
+    const accInfo = await terra.auth.accountInfo(multiSigAddress);
+    const gcpHsmKey = await getGcpHsmKey();
 
     return await gcpHsmKey.createSignatureAmino(
         new SignDoc(
@@ -82,7 +86,8 @@ app.post( "/sign", async ( req, res ) => {
     console.log("=========Request=========");
     console.log(json);
 
-    const signature = await sign(json.receiverAddress, json.amount, json.memo);
+    const tx = await createTx(json.receiverAddress, json.amount, json.memo);
+    const signature = await sign(tx);
 
     console.log("=========Response=========");
     console.log(signature);
