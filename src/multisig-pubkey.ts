@@ -1,5 +1,5 @@
 
-import { SimplePublicKey, Key, LegacyAminoMultisigPublicKey} from '@terra-money/terra.js';
+import { SimplePublicKey, LegacyAminoMultisigPublicKey } from '@terra-money/terra.js';
 
 import * as keyInfo from '../.key-info.json';
 

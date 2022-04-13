@@ -1,4 +1,4 @@
-import { LCDClient, SignatureV2, SignDoc, MsgSend, SimplePublicKey, LegacyAminoMultisigPublicKey, Key, Tx, Coins} from '@terra-money/terra.js';
+import { LCDClient, SignatureV2, SignDoc, MsgSend, SimplePublicKey, LegacyAminoMultisigPublicKey, Key, Tx, Coins } from '@terra-money/terra.js';
 import { KeyManagementServiceClient } from "@google-cloud/kms";
 import { GcpHsmKey } from './hsm/GcpHsmKey';
 import { GcpHsmSigner } from './hsm/GcpHsmSigner';
@@ -79,7 +79,7 @@ const port = 8000; // default port to listen
 
 app.use(express.json());
 
-app.post( "/sign", async ( req, res ) => {
+app.post("/sign", async (req, res) => {
 
     const json = JSON.parse(req.body.json);
 
@@ -93,9 +93,9 @@ app.post( "/sign", async ( req, res ) => {
     console.log(signature);
 
     res.send(JSON.stringify(signature));
-} );
+});
 
 // start the Express server
-app.listen( port, () => {
-    console.log( `server started` );
-} );
+app.listen(port, () => {
+    console.log(`server started`);
+});
